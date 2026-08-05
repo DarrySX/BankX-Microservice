@@ -5,6 +5,7 @@ import com.bankx.transactions.domain.port.out.RiskPolicyPort;
 import java.math.BigDecimal;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -12,7 +13,14 @@ import reactor.util.retry.Retry;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JpaRiskPolicyAdapter implements RiskPolicyPort {
+
+    /**
+     * Límite conservador que se aplica cuando el módulo legado no responde: preferimos rechazar
+     * de más a aprobar a ciegas. Nunca es más permisivo que la regla más estricta de la tabla.
+     */
+    private static final BigDecimal DEGRADED_MAX_DEBIT = new BigDecimal("100");
 
     private final RiskRuleJpaRepository repository;
 
@@ -27,6 +35,17 @@ public class JpaRiskPolicyAdapter implements RiskPolicyPort {
                 .subscribeOn(Schedulers.boundedElastic())   // ⬅️ NUNCA en el event-loop
                 .timeout(Duration.ofSeconds(2))             // un H2 lento no acumula hilos
                 .retryWhen(Retry.backoff(3, Duration.ofMillis(200)).jitter(0.5))
-                .map(max -> amount.compareTo(max) <= 0);
+                .map(max -> amount.compareTo(max) <= 0)
+                .onErrorResume(ex -> degradedPolicy(currency, amount, ex));
+    }
+
+    /**
+     * Agotados los reintentos, el servicio sigue operativo con una política reducida
+     * en lugar de propagar un 500. Se registra en WARN para que quede rastro en la operación.
+     */
+    private Mono<Boolean> degradedPolicy(String currency, BigDecimal amount, Throwable ex) {
+        log.warn("Módulo de riesgo no disponible para {}, aplicando política degradada (máx {})",
+                currency, DEGRADED_MAX_DEBIT, ex);
+        return Mono.just(amount.compareTo(DEGRADED_MAX_DEBIT) <= 0);
     }
 }

@@ -6,9 +6,8 @@ spring:
     name: transactions-service
   data:
     mongodb:
-      # 27018 en local: el 27017 lo ocupa otro contenedor Mongo del bootcamp.
       # 127.0.0.1 y no localhost: Podman/WSL solo publica el puerto en loopback IPv4.
-      uri: ${MONGODB_URI:mongodb://127.0.0.1:27018/bankx}
+      uri: ${MONGODB_URI:mongodb://127.0.0.1:27017/bankx}
   datasource:
     url: jdbc:h2:mem:riskdb;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver

@@ -9,6 +9,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class GlobalErrorHandler {
@@ -28,6 +29,18 @@ public class GlobalErrorHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegal(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+    }
+
+    /**
+     * Las excepciones que ya traen su propio status (404 de ruta inexistente, 415, 400 de body ilegible)
+     * conservan ese status: sin esto, el handler genérico las convertiría todas en 500.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleStatus(ResponseStatusException ex) {
+        var reason = ex.getReason() != null
+                ? ex.getReason()
+                : HttpStatus.valueOf(ex.getStatusCode().value()).getReasonPhrase();
+        return ResponseEntity.status(ex.getStatusCode()).body(Map.of("error", reason));
     }
 
     @ExceptionHandler(Exception.class)

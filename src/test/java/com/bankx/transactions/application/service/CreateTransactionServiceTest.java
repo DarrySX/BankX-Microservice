@@ -1,5 +1,6 @@
 package com.bankx.transactions.application.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -91,8 +92,8 @@ class CreateTransactionServiceTest {
 
         StepVerifier.create(service.create(cmd))
                 .assertNext(tx -> {
-                    org.assertj.core.api.Assertions.assertThat(tx.id()).isEqualTo("tx-1");
-                    org.assertj.core.api.Assertions.assertThat(tx.accountId()).isEqualTo("id-1");
+                    assertThat(tx.id()).isEqualTo("tx-1");
+                    assertThat(tx.accountId()).isEqualTo("id-1");
                 })
                 .verifyComplete();
 

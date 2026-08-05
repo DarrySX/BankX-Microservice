@@ -19,6 +19,24 @@
 
   <properties>
     <java.version>17</java.version>
+
+    <jacoco.version>0.8.12</jacoco.version>
+    <checkstyle.plugin.version>3.3.1</checkstyle.plugin.version>
+    <checkstyle.version>10.17.0</checkstyle.version>
+    <sonar.plugin.version>4.0.0.4121</sonar.plugin.version>
+
+    <!-- Umbrales de cobertura. El global (BUNDLE) es la métrica que reporta Sonar. -->
+    <coverage.bundle.line>0.80</coverage.bundle.line>
+    <coverage.bundle.branch>0.75</coverage.bundle.branch>
+    <coverage.class.line>0.70</coverage.class.line>
+
+    <sonar.projectKey>bankx-transactions</sonar.projectKey>
+    <sonar.projectName>BankX Transactions Service</sonar.projectName>
+    <sonar.host.url>http://127.0.0.1:9000</sonar.host.url>
+    <sonar.coverage.jacoco.xmlReportPaths>target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+    <sonar.coverage.exclusions>
+      **/TransactionsServiceApplication.java,**/config/**,**/document/**,**/mock/**,**/*Properties.java
+    </sonar.coverage.exclusions>
   </properties>
 
   <dependencies>
@@ -92,6 +110,109 @@
             </exclude>
           </excludes>
         </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.version}</version>
+        <configuration>
+          <excludes>
+            <exclude>**/TransactionsServiceApplication.class</exclude>
+            <exclude>**/config/**</exclude>
+            <exclude>**/document/**</exclude>
+            <exclude>**/mock/**</exclude>
+            <exclude>**/*Properties.class</exclude>
+          </excludes>
+        </configuration>
+        <executions>
+          <execution>
+            <id>prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>test</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>check</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <!-- Global: es la cifra que reporta Sonar y la que se exige en la entrega. -->
+                <rule>
+                  <element>BUNDLE</element>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>${coverage.bundle.line}</minimum>
+                    </limit>
+                    <limit>
+                      <counter>BRANCH</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>${coverage.bundle.branch}</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+                <!-- Suelo por clase: impide que una clase quede sin tests escondida tras la media. -->
+                <rule>
+                  <element>CLASS</element>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>${coverage.class.line}</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-checkstyle-plugin</artifactId>
+        <version>${checkstyle.plugin.version}</version>
+        <dependencies>
+          <dependency>
+            <groupId>com.puppycrawl.tools</groupId>
+            <artifactId>checkstyle</artifactId>
+            <version>${checkstyle.version}</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <configLocation>checkstyle.xml</configLocation>
+          <includeTestSourceDirectory>false</includeTestSourceDirectory>
+          <consoleOutput>true</consoleOutput>
+          <failOnViolation>true</failOnViolation>
+          <violationSeverity>error</violationSeverity>
+        </configuration>
+        <executions>
+          <execution>
+            <id>checkstyle-validation</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.sonarsource.scanner.maven</groupId>
+        <artifactId>sonar-maven-plugin</artifactId>
+        <version>${sonar.plugin.version}</version>
       </plugin>
     </plugins>
   </build>

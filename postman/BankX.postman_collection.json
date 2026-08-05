@@ -1,0 +1,226 @@
+{
+  "info": {
+    "name": "BankX - Transactions Service",
+    "description": "Microservicio reactivo de movimientos bancarios (WebFlux + Mongo reactivo + JPA/H2 legado + SSE).\n\nOrden sugerido para la demo: 6) abrir SSE -> 1) POST OK -> 2) POST riesgo -> 3) POST fondos -> 5) GET listar.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8084",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1) Crear transaccion - OK",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"accountNumber\": \"001-0001\",\n  \"type\": \"DEBIT\",\n  \"amount\": 100\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/transactions",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "transactions"]
+        },
+        "description": "201 Created, status OK. El saldo de 001-0001 pasa de 2000 a 1900."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "pm.test('status OK', () => pm.expect(pm.response.json().status).to.eql('OK'));",
+              "pm.test('tiene id asignado', () => pm.expect(pm.response.json().id).to.be.a('string'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "2) Rechazo por riesgo",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"accountNumber\": \"001-0001\",\n  \"type\": \"DEBIT\",\n  \"amount\": 2000\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/transactions",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "transactions"]
+        },
+        "description": "400 risk_rejected: supera maxDebitPerTx = 1500 para PEN."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+              "pm.test('error risk_rejected', () => pm.expect(pm.response.json().error).to.eql('risk_rejected'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "3) Rechazo por fondos insuficientes",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"accountNumber\": \"001-0002\",\n  \"type\": \"DEBIT\",\n  \"amount\": 1200\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/transactions",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "transactions"]
+        },
+        "description": "400 insufficient_funds: pasa riesgo (1200 <= 1500) pero el saldo de 001-0002 es 800.\n\nOJO: con amount 2000 el error seria risk_rejected, porque el riesgo se evalua ANTES."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+              "pm.test('error insufficient_funds', () => pm.expect(pm.response.json().error).to.eql('insufficient_funds'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "4) Cuenta inexistente",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"accountNumber\": \"999-9999\",\n  \"type\": \"CREDIT\",\n  \"amount\": 50\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/transactions",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "transactions"]
+        },
+        "description": "400 account_not_found."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+              "pm.test('error account_not_found', () => pm.expect(pm.response.json().error).to.eql('account_not_found'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "5) Listar por cuenta",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/transactions?accountNumber=001-0001",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "transactions"],
+          "query": [
+            { "key": "accountNumber", "value": "001-0001" }
+          ]
+        },
+        "description": "200 con el array ordenado por timestamp descendente."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('devuelve un array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+              "pm.test('ordenado por timestamp desc', () => {",
+              "  const ts = pm.response.json().map(t => Date.parse(t.timestamp));",
+              "  pm.expect(ts).to.eql([...ts].sort((a, b) => b - a));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "6) Stream SSE",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "text/event-stream" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/stream/transactions",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "stream", "transactions"]
+        },
+        "description": "Stream en vivo. Dejalo abierto y lanza el request 1 en paralelo: debe llegar un evento 'transaction'.\n\nEn terminal:  curl -N http://localhost:8084/api/stream/transactions"
+      },
+      "response": []
+    },
+    {
+      "name": "7) Validacion - payload invalido",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"accountNumber\": \"\",\n  \"type\": \"TRANSFER\",\n  \"amount\": 0\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/transactions",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "transactions"]
+        },
+        "description": "400 validation_error con el detalle por campo, resuelto por GlobalErrorHandler."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+              "pm.test('error validation_error', () => pm.expect(pm.response.json().error).to.eql('validation_error'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    }
+  ]
+}

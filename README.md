@@ -362,6 +362,26 @@ mvn clean verify
 
 Estado actual: **66 tests · cobertura 100 % · 0 violaciones de Checkstyle · 0 issues en Sonar**.
 
+### 10.0 Dónde quedan los reportes
+
+`mvn clean verify` deja los tres reportes navegables sin comandos adicionales:
+
+| Reporte | Ruta |
+|---|---|
+| Cobertura (HTML) | `target/site/jacoco/index.html` |
+| Cobertura (XML, lo consume Sonar) | `target/site/jacoco/jacoco.xml` |
+| Checkstyle (HTML) | `target/site/checkstyle.html` |
+| Checkstyle (XML) | `target/checkstyle-result.xml` |
+| Tests | `target/surefire-reports/` |
+
+```powershell
+# abrirlos en el navegador
+start target\site\jacoco\index.html
+start target\site\checkstyle.html
+```
+
+> El HTML de Checkstyle **no** lo genera el goal `check`, que solo produce XML. Lo genera el goal `checkstyle`, que está enganchado a `verify` justo antes del `check` para que el reporte exista incluso cuando el build falla por violaciones — que es precisamente cuando lo quieres mirar.
+
 ### 10.1 JaCoCo
 
 | Ámbito | Contador | Mínimo exigido |

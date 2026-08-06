@@ -199,6 +199,15 @@
           <violationSeverity>error</violationSeverity>
         </configuration>
         <executions>
+          <!-- Reporte HTML navegable en target/site/checkstyle.html. Va antes del check
+               para que quede generado incluso cuando el build falla por violaciones. -->
+          <execution>
+            <id>checkstyle-report</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>checkstyle</goal>
+            </goals>
+          </execution>
           <execution>
             <id>checkstyle-validation</id>
             <phase>verify</phase>

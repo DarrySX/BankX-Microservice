@@ -23,11 +23,12 @@ Puerto `8084` · Java 17 · Spring Boot 3.2.5 · Maven 3.9+
 7. [Demo del stream SSE](#7-demo-del-stream-sse)
 8. [Colección Postman](#8-colección-postman)
 9. [Tests](#9-tests)
-10. [Arquitectura](#10-arquitectura)
-11. [Códigos de error](#11-códigos-de-error)
-12. [Política de riesgo](#12-política-de-riesgo)
-13. [Configuración](#13-configuración)
-14. [Troubleshooting](#14-troubleshooting)
+10. [Calidad: JaCoCo, Checkstyle y SonarQube](#10-calidad-jacoco-checkstyle-y-sonarqube)
+11. [Arquitectura](#11-arquitectura)
+12. [Códigos de error](#12-códigos-de-error)
+13. [Política de riesgo](#13-política-de-riesgo)
+14. [Configuración](#14-configuración)
+15. [Troubleshooting](#15-troubleshooting)
 
 ---
 
@@ -57,7 +58,7 @@ Arranques posteriores:
 podman start mongo-bankx
 ```
 
-> ⚠️ **El prefijo `127.0.0.1:` no es opcional en Windows/WSL.** Sin él, Podman publica el puerto solo en `[::1]`: el puerto *parece* abierto (`Test-NetConnection` devuelve `True`) pero el relay corta la conexión al leer, y la app muere tras 30 s con `MongoSocketReadException`. Ver [Troubleshooting](#14-troubleshooting).
+> ⚠️ **El prefijo `127.0.0.1:` no es opcional en Windows/WSL.** Sin él, Podman publica el puerto solo en `[::1]`: el puerto *parece* abierto (`Test-NetConnection` devuelve `True`) pero el relay corta la conexión al leer, y la app muere tras 30 s con `MongoSocketReadException`. Ver [Troubleshooting](#15-troubleshooting).
 
 Comprueba que quedó bien publicado:
 
@@ -327,21 +328,142 @@ newman run postman/BankX.postman_collection.json
 mvn clean verify
 ```
 
-11 tests, 3 clases:
+**66 tests en 15 clases**, todos en verde.
 
 | Clase | Tipo | Qué cubre |
 |---|---|---|
-| `CreateTransactionServiceTest` | unitario puro | Las 4 ramas del caso de uso: cuenta inexistente, riesgo denegado, fondos insuficientes y camino feliz (incluye que el saldo debitado sea el persistido y que el evento se emita) |
-| `JpaRiskPolicyAdapterTest` | integración (`@SpringBootTest` + H2) | Límite respetado, límite superado, créditos que saltan la evaluación, moneda sin regla |
-| `JpaRiskPolicyAdapterDegradedTest` | unitario puro | Política degradada cuando el módulo legado está caído, y que los créditos ni tocan el repositorio |
+| `CreateTransactionServiceTest` | unitario puro | Las 4 ramas del caso de uso: cuenta inexistente, riesgo denegado, fondos insuficientes y camino feliz |
+| `ListTransactionsServiceTest` | unitario puro | Listado OK, listado vacío y `account_not_found` |
+| `StreamTransactionsServiceTest` | unitario puro | Delegación al puerto de suscripción y propagación de errores |
+| `AccountTest` | unitario puro | `debit`, `credit`, `apply`, gasto exacto del saldo y saldo insuficiente |
+| `TransactionTest` | unitario puro | `approved`, `rejected`, `withId` |
+| `TransactionTypeTest` | unitario puro | `from()` con mayúsculas, espacios, nulos y valores inválidos |
+| `JpaRiskPolicyAdapterTest` | integración (`@SpringBootTest` + H2) | Límite respetado, superado, créditos que saltan la evaluación, moneda sin regla |
+| `JpaRiskPolicyAdapterDegradedTest` | unitario puro | Política degradada con el módulo legado caído |
+| `SinkTransactionEventAdapterTest` | unitario puro | Publicación, multicast y supervivencia del sink a un suscriptor que cancela |
+| `AccountMapperTest` · `TransactionMapperTest` | unitario puro | Ida y vuelta documento ⇄ dominio |
+| `MongoAccountAdapterTest` · `MongoTransactionAdapterTest` | unitario puro | Adaptadores con el repositorio mockeado, incluido el contrato `Mono.empty()` |
+| `GlobalErrorHandlerTest` | unitario puro | Las 6 ramas del handler, incluida la de `ResponseStatusException` |
+| `TransactionControllerTest` | slice (`@WebFluxTest`) | 201, los 4 códigos de error, validación, listado y SSE |
 
-`CreateTransactionServiceTest` corre **sin Mongo, sin H2 y sin contexto de Spring** — es la prueba de que la arquitectura está bien: la capa de aplicación se instancia con un `new` y mocks. Si necesitaras `@SpringBootTest` para probar una regla de negocio, algo se habría filtrado hacia adentro.
+Salvo `JpaRiskPolicyAdapterTest`, **ninguno necesita Mongo, H2 ni contexto de Spring**. Esa es la prueba de que la arquitectura está bien: la lógica de negocio se instancia con un `new` y mocks. Si necesitaras `@SpringBootTest` para probar una regla de negocio, algo se habría filtrado hacia adentro.
 
 > Verás un stack trace en el log durante `JpaRiskPolicyAdapterDegradedTest`: es el `log.warn` esperado de la política degradada, no un fallo.
 
 ---
 
-## 10. Arquitectura
+## 10. Calidad: JaCoCo, Checkstyle y SonarQube
+
+Las tres herramientas están enganchadas a la fase `verify`, así que **un solo comando lo ejecuta todo**:
+
+```bash
+mvn clean verify
+```
+
+Estado actual: **66 tests · cobertura 100 % · 0 violaciones de Checkstyle · 0 issues en Sonar**.
+
+### 10.1 JaCoCo
+
+| Ámbito | Contador | Mínimo exigido |
+|---|---|---|
+| `BUNDLE` (global) | LINE | 0.80 |
+| `BUNDLE` (global) | BRANCH | 0.75 |
+| `CLASS` (por clase) | LINE | 0.70 |
+
+El umbral global es la cifra que reporta Sonar y la que exige la entrega. El suelo por clase existe para que ninguna clase quede sin tests escondida detrás de la media.
+
+Los umbrales son propiedades del `pom.xml` (`coverage.bundle.line`, `coverage.bundle.branch`, `coverage.class.line`), así que puedes subirlos sin editar la configuración del plugin.
+
+```bash
+# Reporte HTML navegable
+target/site/jacoco/index.html
+# Reporte XML que consume Sonar
+target/site/jacoco/jacoco.xml
+```
+
+**`lombok.config` en la raíz es imprescindible.** Con `lombok.addLombokGeneratedAnnotation = true`, JaCoCo ignora los getters, `equals`, `hashCode` y builders que genera Lombok. Sin él, las 8 clases anotadas con `@Data`/`@Builder` hunden la cobertura y el umbral es inalcanzable.
+
+**Exclusiones:** solo la clase `main`, `config/**`, `document/**`, `mock/**` y `*Properties`. Los DTOs y las excepciones de dominio **sí** se miden — tienen lógica real y los tests del controller las cubren.
+
+**Comprobar que el umbral rompe el build:**
+
+```bash
+mvn clean verify "-Dtest=!TransactionControllerTest" -DfailIfNoSpecifiedTests=false
+# BUILD FAILURE
+# Rule violated for class ...TransactionController: lines covered ratio is 0.00, but expected minimum is 0.70
+```
+
+### 10.2 Checkstyle
+
+Ruleset propio en [`checkstyle.xml`](checkstyle.xml), con `severity=error` y `failOnViolation=true`. Cubre nombres, imports, estructura, números mágicos, longitud de métodos y espaciado. Solo se analiza `src/main`.
+
+```bash
+mvn checkstyle:check     # solo el análisis
+```
+
+No se usa `google_checks.xml`: exige indentación de 2 espacios y Javadoc en todo método público, así que llegar a 0 violaciones ahí significaría reformatear el proyecto entero sin ganar calidad real.
+
+`HideUtilityClassConstructor` queda deliberadamente fuera del ruleset: la clase `@SpringBootApplication` solo tiene un `main` estático, pero Spring la registra como bean de configuración y CGLIB necesita un constructor no privado para subclasearla. Los mappers, que sí son clases de utilidad, ya declaran el suyo privado.
+
+### 10.3 SonarQube
+
+Levantar el servidor:
+
+```bash
+podman run -d --name sonar -p 127.0.0.1:9000:9000 sonarqube:lts-community
+# arranques posteriores
+podman start sonar
+```
+
+Tarda ~1 min. Comprueba que está listo antes de analizar:
+
+```bash
+curl -s http://127.0.0.1:9000/api/system/status
+# {"id":"...","version":"9.9.8.100196","status":"UP"}
+```
+
+Credenciales locales: **`admin` / `bankx2026`** · Proyecto: `bankx-transactions`
+
+Ejecutar el análisis:
+
+```bash
+# bash
+mvn clean verify sonar:sonar -Dsonar.token=$SONAR_TOKEN
+```
+```powershell
+# PowerShell
+mvn clean verify sonar:sonar "-Dsonar.token=$env:SONAR_TOKEN"
+```
+
+Dashboard: http://127.0.0.1:9000/dashboard?id=bankx-transactions
+
+> `verify` debe ir **antes** que `sonar:sonar` en el mismo comando: Sonar lee el `jacoco.xml` que produce esa fase. Si los separas, la cobertura aparece en 0 %.
+
+> Usa `-Dsonar.token`, no `-Dsonar.login`: este último está deprecado desde SonarQube 10.
+
+**El token nunca va al repositorio.** Se pasa por variable de entorno y el `.gitignore` ya cubre `.scannerwork/`, `.sonar/` y `sonar-token*`. Si lo pierdes, genera otro:
+
+```bash
+curl -s -u admin:bankx2026 -X POST \
+  "http://127.0.0.1:9000/api/user_tokens/generate?name=bankx-maven-2"
+```
+
+### 10.4 Findings corregidos
+
+El primer análisis arrojó 4 code smells. Todos corregidos:
+
+| Regla | Dónde | Corrección |
+|---|---|---|
+| `java:S1192` (crítico) | `GlobalErrorHandler` | El literal `"error"` se repetía 5 veces → constante `ERROR_KEY` |
+| `java:S5411` (menor) | `CreateTransactionService` | `allowed ? ... : ...` sobre un `Boolean` podía lanzar NPE al desempaquetar → `Boolean.TRUE.equals(allowed)` |
+| `java:S1135` (info) | `BeanConfig` | Falso positivo: el Javadoc empezaba con la palabra española *"Todo"* y Sonar la leía como un `TODO` pendiente → reformulado |
+| `java:S5778` (mayor) | `AccountTest` | Dos llamadas que podían lanzar dentro del mismo lambda de `assertThatThrownBy` → el `BigDecimal` se construye fuera |
+
+Resultado del segundo análisis: **0 bugs, 0 vulnerabilidades, 0 code smells, 0 hotspots, cobertura 100 %, Quality Gate OK** y las tres notas (fiabilidad, seguridad, mantenibilidad) en **A**.
+
+---
+
+## 11. Arquitectura
 
 ```
                     ┌─────────────────────────────────────────┐
@@ -426,7 +548,7 @@ WebFlux corre sobre pocos hilos de Netty (uno por core). Una llamada JDBC bloque
 
 ---
 
-## 11. Códigos de error
+## 12. Códigos de error
 
 Todos responden `400` con el cuerpo `{"error": "<código>"}`.
 
@@ -444,7 +566,7 @@ Las rutas inexistentes devuelven `404`, no `500`: `GlobalErrorHandler` deja pasa
 
 ---
 
-## 12. Política de riesgo
+## 13. Política de riesgo
 
 Comportamiento de `JpaRiskPolicyAdapter`:
 
@@ -459,7 +581,7 @@ Comportamiento de `JpaRiskPolicyAdapter`:
 
 ---
 
-## 13. Configuración
+## 14. Configuración
 
 `src/main/resources/application.yml`:
 
@@ -483,7 +605,7 @@ $env:MONGODB_URI = "mongodb://localhost:27017/bankx"; mvn spring-boot:run
 
 ---
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
 ### La app muere al arrancar con `MongoTimeoutException` tras 30 segundos
 

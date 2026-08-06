@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Todo el wiring vive aquí: la capa de aplicación no lleva anotaciones de Spring
+ * Punto único de wiring. La capa de aplicación no lleva anotaciones de Spring
  * y por eso se puede instanciar con un {@code new} puro en los tests.
  */
 @Configuration

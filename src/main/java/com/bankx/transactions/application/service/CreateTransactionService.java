@@ -35,7 +35,7 @@ public class CreateTransactionService implements CreateTransactionUseCase {
 
     private Mono<Account> evaluateRisk(Account account, CreateTransactionCommand cmd) {
         return riskPolicyPort.isAllowed(account.currency(), cmd.type(), cmd.amount())
-                .flatMap(allowed -> allowed
+                .flatMap(allowed -> Boolean.TRUE.equals(allowed)
                         ? Mono.just(account)
                         : Mono.error(new RiskRejectedException()));
     }

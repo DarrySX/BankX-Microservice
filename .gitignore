@@ -48,6 +48,12 @@ logs/
 *.mv.db
 *.trace.db
 
+### Calidad ###
+.scannerwork/
+.sonar/
+sonar-token*
+*.exec
+
 ### readme ###
 Instructions.md
 Instructions2.md

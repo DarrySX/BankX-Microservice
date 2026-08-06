@@ -28,7 +28,9 @@ class AccountTest {
 
     @Test
     void debitRejectsAmountAboveBalance() {
-        assertThatThrownBy(() -> ACCOUNT.debit(new BigDecimal("2000.01")))
+        var oneCentTooMuch = new BigDecimal("2000.01");
+
+        assertThatThrownBy(() -> ACCOUNT.debit(oneCentTooMuch))
                 .isInstanceOf(InsufficientFundsException.class)
                 .hasMessage("insufficient_funds");
     }

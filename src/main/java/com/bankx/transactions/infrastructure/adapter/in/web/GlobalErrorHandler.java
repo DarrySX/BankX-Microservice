@@ -14,21 +14,24 @@ import org.springframework.web.server.ResponseStatusException;
 @RestControllerAdvice
 public class GlobalErrorHandler {
 
+    /** Clave única del cuerpo de error: {"error": "<código>"}. */
+    private static final String ERROR_KEY = "error";
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Map<String, Object>> handleBusiness(BusinessException ex) {
-        return ResponseEntity.badRequest().body(Map.of("error", ex.getCode()));
+        return ResponseEntity.badRequest().body(Map.of(ERROR_KEY, ex.getCode()));
     }
 
     @ExceptionHandler(WebExchangeBindException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(WebExchangeBindException ex) {
         var details = ex.getFieldErrors().stream()
                 .collect(Collectors.toMap(FieldError::getField, FieldError::getDefaultMessage, (a, b) -> a));
-        return ResponseEntity.badRequest().body(Map.of("error", "validation_error", "details", details));
+        return ResponseEntity.badRequest().body(Map.of(ERROR_KEY, "validation_error", "details", details));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegal(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        return ResponseEntity.badRequest().body(Map.of(ERROR_KEY, ex.getMessage()));
     }
 
     /**
@@ -40,11 +43,11 @@ public class GlobalErrorHandler {
         var reason = ex.getReason() != null
                 ? ex.getReason()
                 : HttpStatus.valueOf(ex.getStatusCode().value()).getReasonPhrase();
-        return ResponseEntity.status(ex.getStatusCode()).body(Map.of("error", reason));
+        return ResponseEntity.status(ex.getStatusCode()).body(Map.of(ERROR_KEY, reason));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "internal_error"));
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(ERROR_KEY, "internal_error"));
     }
 }

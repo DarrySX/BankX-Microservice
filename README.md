@@ -651,3 +651,21 @@ Comprueba que la transacción se aprobó: los rechazos no se publican, por dise�
 ### Los datos de ejemplo desaparecieron
 
 El `DataSeeder` borra y recrea las cuentas en **cada arranque**. Reinicia la app y vuelven al estado inicial (2000 y 800).
+
+### El contenedor de Sonar se reinicia en bucle
+
+Es Elasticsearch, que va dentro de SonarQube y necesita memoria y `vm.max_map_count ≥ 262144`. Comprueba ambos en la VM de Podman:
+
+```bash
+podman machine ssh "free -m; sysctl vm.max_map_count"
+```
+
+`podman machine list` puede reportar `mem=2GiB` y **no ser cierto**: en WSL la memoria es dinámica (hasta el 50 % del host), así que mira el `free -m` de dentro, no ese campo. `podman machine set --memory` además no funciona en WSL — si de verdad necesitas limitarla, se configura en `C:\Users\<usuario>\.wslconfig`.
+
+### La cobertura sale en 0 % en Sonar pero JaCoCo dice otra cosa
+
+`sonar:sonar` se ejecutó sin un `verify` previo en el mismo comando, así que no existía `target/site/jacoco/jacoco.xml` cuando el scanner fue a leerlo. Encadénalos: `mvn clean verify sonar:sonar`.
+
+### JaCoCo reporta 0 % en clases llenas de getters
+
+Falta `lombok.config` en la raíz, o le falta `lombok.addLombokGeneratedAnnotation = true`. Sin esa marca, todo el código que genera Lombok cuenta como no cubierto.

@@ -45,8 +45,14 @@
       <property name="max" value="7"/>
     </module>
     <module name="FinalClass"/>
-    <module name="HideUtilityClassConstructor"/>
     <module name="OneTopLevelClass"/>
+    <!--
+      HideUtilityClassConstructor queda fuera a propósito: la clase anotada con
+      @SpringBootApplication solo tiene un main estático, pero Spring la registra como
+      bean de configuración y CGLIB necesita un constructor no privado para subclasearla.
+      Los mappers, que sí son clases de utilidad, ya declaran su constructor privado.
+    -->
+
 
     <!-- Espaciado -->
     <module name="WhitespaceAround">
